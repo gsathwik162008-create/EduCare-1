@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduCare | Student Success Platform</title>
+  <meta name="description" content="EduCare: A simple, clear student success dashboard for college faculty, administrators, and students to track learning and support needs.">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="app-container">
+    <!-- Clean Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="institutional-badge">College Dashboard</div>
+        <div class="brand-title">EduCare</div>
+      </div>
+
+      <nav class="nav-section" id="nav-section">
+        <div class="nav-section-title" id="nav-header-label">Main Menu</div>
+        <ul class="nav-menu" id="nav-menu">
+          <!-- Dynamically populated based on role -->
+        </ul>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-badge" id="user-badge">
+          <div class="user-name" id="user-display-name">Not Signed In</div>
+          <div class="user-role-tag" id="user-role-label">GUEST</div>
+        </div>
+        <button class="btn-sidebar-secondary" id="btn-start-tour" style="display: none;">Take a Quick Tour</button>
+        <button class="btn-sidebar-secondary" id="btn-logout">Sign Out</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area: 1200px max width -->
+    <main class="main-content" id="main-content">
+      <div id="screen-container">
+        <!-- Active screen dynamically rendered here -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Global Floating Help Popover -->
+  <div id="help-popover" class="help-popover"></div>
+
+  <!-- Guided 3-Step Tour Modal (PART 4) -->
+  <div id="tour-modal" class="tour-overlay" style="display: none;">
+    <div class="tour-card">
+      <div class="tour-step-badge" id="tour-step-badge">Step 1 of 3</div>
+      <h3 id="tour-step-title">Summary Numbers</h3>
+      <p id="tour-step-desc">Glance here to see how your college and students are doing overall. Numbers show progress compared to last semester.</p>
+      <div class="tour-footer">
+        <button type="button" class="btn-outline" id="tour-skip-btn">Skip tour</button>
+        <button type="button" class="btn-primary" id="tour-next-btn">Next &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal in Plain Language -->
+  <div class="login-backdrop" id="login-modal" style="display: none;">
+    <div class="login-card">
+      <div class="institutional-badge" style="margin-bottom: 6px;">EduCare · Student Success</div>
+      <h2>Sign in to your account</h2>
+      <p>A simple portal for teachers, administrators, and students to track learning progress.</p>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label for="login-username">Username or Roll Number</label>
+          <input type="text" id="login-username" class="form-control" placeholder="e.g. admin or prof_sharma or 21CIV036" required autofocus>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 22px;">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" class="form-control" placeholder="Enter password" required>
+        </div>
+
+        <button type="submit" class="btn-primary" style="width: 100%; padding: 11px;" id="btn-login-submit">Sign In</button>
+      </form>
+
+      <div id="login-error-msg" style="color: var(--status-urgent); font-size: 13px; margin-top: 12px; display: none;"></div>
+
+      <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-hairline);">
+        <div class="filter-label" style="margin-bottom: 8px;">Demo Fast-Access Accounts:</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <button type="button" class="btn-outline" style="text-align: left; font-size: 12px;" id="quick-login-admin">
+            <strong>ADMIN:</strong> admin / admin123 (All college data)
+          </button>
+          <button type="button" class="btn-outline" style="text-align: left; font-size: 12px;" id="quick-login-faculty">
+            <strong>FACULTY:</strong> prof_sharma / faculty123 (Teacher view, 120 students)
+          </button>
+          <button type="button" class="btn-outline" style="text-align: left; font-size: 12px;" id="quick-login-student">
+            <strong>STUDENT:</strong> 21CIV036 / student123 (Student view)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
