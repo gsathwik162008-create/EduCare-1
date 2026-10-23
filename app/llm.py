@@ -140,7 +140,8 @@ async def explain_student(
 
         async with httpx.AsyncClient(timeout=4.0) as client:
             resp = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={LLM_API_KEY}",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                headers={"x-goog-api-key": LLM_API_KEY},
                 json={"contents": [{"parts": [{"text": prompt}]}]}
             )
             if resp.status_code == 200:
@@ -177,7 +178,8 @@ async def ask_analytics(
 
         async with httpx.AsyncClient(timeout=4.0) as client:
             resp = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={LLM_API_KEY}",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                headers={"x-goog-api-key": LLM_API_KEY},
                 json={"contents": [{"parts": [{"text": prompt}]}]}
             )
             if resp.status_code == 200:

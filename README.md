@@ -35,15 +35,20 @@ Log in with any of these three demo accounts:
 
 ## Running the Platform Locally
 
-1. Install requirements:
+1. Copy `.env.example` to `.env`, then generate a secret key:
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(48))"
+   ```
+   Set the generated value as `SECRET_KEY` in `.env`.
+2. Install requirements:
    ```bash
    pip install -r requirements.txt
    ```
-2. Start the web server:
+3. Start the web server:
    ```bash
    python -m uvicorn app.main:app --reload --port 8000
    ```
-3. Open your browser:
+4. Open your browser:
    ```
    http://127.0.0.1:8000/
    ```

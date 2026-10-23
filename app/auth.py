@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import jwt
 import bcrypt
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
@@ -13,7 +13,12 @@ from app.models import User, FacultyAssignment, Student
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey_for_smart_campus_jwt_token_2026")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY or len(SECRET_KEY) < 32 or SECRET_KEY.startswith("CHANGE_ME"):
+    raise RuntimeError(
+        "SECRET_KEY is missing or insecure. Copy .env.example to .env and generate a key with: "
+        'python -c "import secrets; print(secrets.token_urlsafe(48))".'
+    )
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 
@@ -53,7 +58,6 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 
 def get_current_user(
-    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     db: Session = Depends(get_db)
 ) -> User:
@@ -61,17 +65,7 @@ def get_current_user(
     Authenticate user via Bearer token, query param 'token', or 'Authorization' header.
     Raises 401 if invalid or missing.
     """
-    token = None
-    if credentials:
-        token = credentials.credentials
-    elif "Authorization" in request.headers:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header.split(" ", 1)[1]
-        else:
-            token = auth_header
-    elif "token" in request.query_params:
-        token = request.query_params.get("token")
+    token = credentials.credentials if credentials else None
 
     if not token:
         raise HTTPException(
