@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -14,7 +14,7 @@ class User(Base):
     faculty_name = Column(String(100), nullable=True)
     student_id = Column(String(50), nullable=True, index=True)
     email = Column(String(120), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     assignments = relationship("FacultyAssignment", back_populates="faculty", cascade="all, delete-orphan")
@@ -102,7 +102,7 @@ class UnifiedStudentMetrics(Base):
     soft_skills_score = Column(Float, default=0.0)
     faculty_feedback_score = Column(Float, default=0.0)
     peer_feedback_score = Column(Float, default=0.0)
-    last_updated = Column(DateTime, default=datetime.utcnow)
+    last_updated = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     student = relationship("Student", back_populates="unified_metrics")
 
@@ -125,7 +125,7 @@ class StudentScore(Base):
     segment_rule = Column(String(100), default="Unassigned")
     segment_kmeans = Column(String(100), default="Cluster 0")
     score_explanation = Column(Text, default="")
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     student = relationship("Student", back_populates="score")
 
@@ -134,7 +134,7 @@ class CleaningLog(Base):
     __tablename__ = "cleaning_log"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     source_file = Column(String(100), nullable=False)
     row_number = Column(Integer, nullable=True)
     student_id = Column(String(50), nullable=True)
@@ -157,7 +157,7 @@ class ScoreSettings(Base):
     threshold_academic_cgpa = Column(Float, default=6.0)
     threshold_attendance_pct = Column(Float, default=75.0)
     threshold_coding_score = Column(Float, default=40.0)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class InterventionAction(Base):
@@ -173,8 +173,8 @@ class InterventionAction(Base):
     priority = Column(Float, default=0.0)
     status = Column(String(30), default="pending")  # pending, in_progress, done
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     score_at_creation = Column(Float, nullable=True, default=None)
     score_at_completion = Column(Float, nullable=True, default=None)
     completed_at = Column(DateTime, nullable=True, default=None)
@@ -192,8 +192,8 @@ class StudentMentorMessage(Base):
     message = Column(Text, nullable=False)
     reply = Column(Text, nullable=True)
     status = Column(String(30), default="open")  # open, resolved
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     student = relationship("Student", back_populates="messages")
     mentor = relationship("User")

@@ -130,7 +130,7 @@ def update_intervention(
     if payload.notes is not None:
         action.notes = payload.notes
 
-    action.updated_at = datetime.utcnow()
+    action.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(action)
 

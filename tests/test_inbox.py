@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -76,7 +76,7 @@ def faculty_students():
 def test_admin_sees_all_open_messages():
     admin_headers = login("admin", "admin123")
     cohort_student_id, outside_student_id = faculty_students()
-    created_at = datetime.utcnow()
+    created_at = datetime.now(timezone.utc)
     message_ids = [
         create_message(cohort_student_id, "Admin inbox cohort test", created_at),
         create_message(outside_student_id, "Admin inbox outside test", created_at + timedelta(seconds=1))
@@ -102,8 +102,8 @@ def test_faculty_sees_only_cohort_messages():
     faculty_headers = login("prof_sharma", "faculty123")
     cohort_student_id, outside_student_id = faculty_students()
     message_ids = [
-        create_message(cohort_student_id, "Faculty inbox cohort test", datetime.utcnow()),
-        create_message(outside_student_id, "Faculty inbox outside test", datetime.utcnow())
+        create_message(cohort_student_id, "Faculty inbox cohort test", datetime.now(timezone.utc)),
+        create_message(outside_student_id, "Faculty inbox outside test", datetime.now(timezone.utc))
     ]
     try:
         response = client.get("/api/students/messages/inbox", headers=faculty_headers)
@@ -137,7 +137,7 @@ def test_reply_removes_message_from_inbox():
     message_id = create_message(
         cohort_student_id,
         "Reply resolution inbox test",
-        datetime.utcnow()
+        datetime.now(timezone.utc)
     )
     try:
         before_reply = client.get("/api/students/messages/inbox", headers=faculty_headers)

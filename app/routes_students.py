@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
@@ -338,7 +338,7 @@ def send_mentor_message(
         mentor_id=student.mentor_id,
         message=payload.message.strip(),
         status="open",
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     db.add(msg)
     db.commit()
@@ -391,6 +391,6 @@ def reply_mentor_message(
 
     msg.reply = payload.reply.strip()
     msg.status = "resolved"
-    msg.updated_at = datetime.utcnow()
+    msg.updated_at = datetime.now(timezone.utc)
     db.commit()
     return {"status": "success", "message_id": msg.id}

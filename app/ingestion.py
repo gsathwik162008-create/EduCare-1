@@ -1,5 +1,5 @@
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Tuple
 import pandas as pd
 import numpy as np
@@ -350,7 +350,7 @@ def ingest_seven_sources(
         m.soft_skills_score = float(row.get("soft_skills_score", 70.0))
         m.faculty_feedback_score = float(row.get("faculty_feedback_score", 75.0))
         m.peer_feedback_score = float(row.get("peer_feedback_score", 75.0))
-        m.last_updated = datetime.utcnow()
+        m.last_updated = datetime.now(timezone.utc)
 
     # 5. Populate Semester History and Subject Records for rich analytics
     for sid, s in existing_students.items():

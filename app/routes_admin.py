@@ -1,5 +1,5 @@
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response, status
@@ -86,7 +86,7 @@ def update_score_settings(
     settings.threshold_academic_cgpa = payload.threshold_academic_cgpa
     settings.threshold_attendance_pct = payload.threshold_attendance_pct
     settings.threshold_coding_score = payload.threshold_coding_score
-    settings.updated_at = datetime.utcnow()
+    settings.updated_at = datetime.now(timezone.utc)
     db.commit()
 
     # Recompute analytics pipeline with new weights

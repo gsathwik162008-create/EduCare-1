@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 import numpy as np
 from sqlalchemy.orm import Session
@@ -172,7 +172,7 @@ def run_full_analytics_pipeline(db: Session) -> Dict[str, Any]:
         score_rec.segment_rule = rule_seg
         score_rec.segment_kmeans = kmeans_seg
         score_rec.score_explanation = explanation
-        score_rec.updated_at = datetime.utcnow()
+        score_rec.updated_at = datetime.now(timezone.utc)
 
     db.commit()
 
