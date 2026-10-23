@@ -35,6 +35,25 @@ def test_student_cannot_explain_another_students_profile():
     assert response.status_code == 403
 
 
+def test_student_explanation_uses_supportive_strengths_and_focus_areas():
+    student_token = login("21CIV036", "student123")
+
+    response = client.post(
+        "/api/explain",
+        json={"student_id": "21CIV036"},
+        headers={"Authorization": f"Bearer {student_token}"}
+    )
+
+    assert response.status_code == 200
+    explanation = response.json()["explanation"]
+    assert "Your strengths:" in explanation
+    assert "Focus areas:" in explanation
+    assert not any(
+        term in explanation.lower()
+        for term in ("risk", "need support", "backlog", "flag")
+    )
+
+
 def test_faculty_cannot_update_intervention_outside_their_cohort():
     faculty_token = login("prof_sharma", "faculty123")
     db = SessionLocal()

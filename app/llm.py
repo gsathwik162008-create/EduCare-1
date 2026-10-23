@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from app.database import get_db
 from app.models import Student, StudentScore, UnifiedStudentMetrics, User
-from app.auth import get_current_user
+from app.auth import check_student_access, get_current_user
 
 load_dotenv()
 router = APIRouter(prefix="/api", tags=["llm"])
@@ -45,6 +45,36 @@ def generate_template_student_explanation(student: Student, score: StudentScore,
     return " ".join(clauses)
 
 
+def generate_student_explanation(student: Student, m: Optional[UnifiedStudentMetrics]) -> str:
+    """Build supportive student-facing language using the student profile's focus areas."""
+    focus_areas = []
+    strengths = []
+    if m:
+        if m.attendance_pct < 80.0:
+            focus_areas.append("Attendance Consistency: Boosting class participation to reach target 85%+")
+        else:
+            strengths.append(f"Strong attendance record ({m.attendance_pct:.1f}%)")
+
+        if m.coding_score < 60.0:
+            focus_areas.append("Coding Practice: Dedicated problem solving on core data structures")
+        else:
+            strengths.append(f"Solid coding assessment performance ({m.coding_score:.1f} pts)")
+
+        if student.year >= 3 and m.mock_interviews_completed < 2:
+            focus_areas.append("Placement Readiness: Completing your 2 recommended mock interview rounds")
+        elif m.mock_interviews_completed >= 2:
+            strengths.append("Completed recommended mock interview sessions")
+
+        if m.assignments_submitted_pct < 85.0:
+            focus_areas.append("Coursework Timeliness: Keeping all lab assignments and quizzes up to date")
+        else:
+            strengths.append(f"High coursework submission rate ({m.assignments_submitted_pct:.1f}%)")
+
+    strengths = strengths or ["Consistent engagement with degree curriculum"]
+    focus_areas = focus_areas or ["Keep maintaining your steady all-around performance!"]
+    return f"Your strengths: {'; '.join(strengths)}. Focus areas: {'; '.join(focus_areas)}."
+
+
 def generate_template_qa_response(query: str, db: Session) -> str:
     """Fallback keyword synthesis for analytical campus questions."""
     q_lower = query.lower()
@@ -76,12 +106,20 @@ async def explain_student(
     POST /api/explain: Generates plain-English narrative explanation for a student's score and risk factors.
     Uses LLM_API_KEY if configured; silently falls back to template engine if missing or on failure.
     """
+    check_student_access(payload.student_id, current_user, db)
+
     student = db.query(Student).filter(Student.student_id == payload.student_id.strip().upper()).first()
     if not student:
         return {"explanation": "Student profile not found.", "source": "fallback"}
 
     score = student.score
     m = student.unified_metrics
+
+    if current_user.role == "STUDENT":
+        return {
+            "explanation": generate_student_explanation(student, m),
+            "source": "template"
+        }
 
     # Fallback default
     template_text = generate_template_student_explanation(student, score, m)
