@@ -18,6 +18,8 @@ import {
     updateIntervention,
     sendStudentMessage,
     getStudentMessages,
+    getMessageInbox,
+    replyStudentMessage,
     getScoreSettings,
     updateScoreSettings,
     recomputeAnalytics,
@@ -167,6 +169,7 @@ function setupSidebarForUser() {
             <li class="nav-item" data-screen="segments">6. ${LABELS.nav.segments}</li>
             <li class="nav-item" data-screen="insights">7. ${LABELS.nav.insights}</li>
             <li class="nav-item" data-screen="score-guide">8. ${LABELS.nav.scoreGuide}</li>
+            <li class="nav-item" data-screen="inbox">Inbox <span class="nav-badge" id="inbox-open-count">0</span></li>
         `;
 
         if (user.role === "ADMIN") {
@@ -188,6 +191,20 @@ function setupSidebarForUser() {
             navigateToScreen(screen);
         });
     });
+
+    if (user.role === "ADMIN" || user.role === "FACULTY") {
+        refreshInboxBadge().catch(err => console.error("Could not refresh inbox count:", err));
+    }
+}
+
+async function refreshInboxBadge() {
+    const messages = await getMessageInbox();
+    updateInboxBadge(messages.length);
+}
+
+function updateInboxBadge(count) {
+    const badge = document.getElementById("inbox-open-count");
+    if (badge) badge.textContent = String(count);
 }
 
 function navigateToDefaultScreen() {
@@ -255,8 +272,76 @@ export function navigateToScreen(screenName, extraParam = null) {
         case "model-settings":
             renderModelSettingsScreen();
             break;
+        case "inbox":
+            renderInboxScreen();
+            break;
         default:
             renderOverviewScreen();
+    }
+}
+
+function escapeInboxHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+    })[character]);
+}
+
+async function renderInboxScreen() {
+    const container = document.getElementById("screen-container");
+    try {
+        const messages = await getMessageInbox();
+        updateInboxBadge(messages.length);
+        container.innerHTML = `
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Inbox</h1>
+                    <div class="page-purpose">Open messages from students in your cohort.</div>
+                </div>
+            </div>
+            <div class="content-card">
+                ${messages.length === 0
+                    ? `<p style="color: var(--text-muted);">No open student messages.</p>`
+                    : messages.map(message => `
+                        <article class="inbox-message" style="padding: 16px 0; border-bottom: 1px solid var(--border-hairline);">
+                            <div style="display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
+                                <strong>${escapeInboxHtml(message.student_name)}</strong>
+                                <span style="color: var(--text-muted); font-size: 12px;">${escapeInboxHtml(message.created_at ? message.created_at.replace("T", " ").slice(0, 16) : "")}</span>
+                            </div>
+                            <p style="white-space: pre-wrap; margin-bottom: 12px;">${escapeInboxHtml(message.message.length > 240 ? `${message.message.slice(0, 240)}...` : message.message)}</p>
+                            <form class="inbox-reply-form" data-message-id="${message.id}">
+                                <label class="sr-only" for="inbox-reply-${message.id}">Reply to ${escapeInboxHtml(message.student_name)}</label>
+                                <textarea id="inbox-reply-${message.id}" class="form-control" rows="3" placeholder="Write a reply..." required></textarea>
+                                <button type="submit" class="btn-primary" style="margin-top: 8px;">Send Reply</button>
+                            </form>
+                        </article>
+                    `).join("")}
+            </div>
+        `;
+
+        container.querySelectorAll(".inbox-reply-form").forEach(form => {
+            form.addEventListener("submit", async event => {
+                event.preventDefault();
+                const textarea = form.querySelector("textarea");
+                const button = form.querySelector("button");
+                const reply = textarea.value.trim();
+                if (!reply) return;
+
+                button.disabled = true;
+                try {
+                    await replyStudentMessage(form.dataset.messageId, reply);
+                    await renderInboxScreen();
+                } catch (err) {
+                    button.disabled = false;
+                    alert("Could not send reply: " + err.message);
+                }
+            });
+        });
+    } catch (err) {
+        container.innerHTML = `<div class="state-container"><p>Could not load inbox: ${escapeInboxHtml(err.message)}</p></div>`;
     }
 }
 

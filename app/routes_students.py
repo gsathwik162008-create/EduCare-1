@@ -17,7 +17,7 @@ from app.models import (
     SubjectRecord,
     StudentMentorMessage
 )
-from app.auth import get_current_user, check_student_access
+from app.auth import get_current_user, require_role, check_student_access
 
 router = APIRouter(prefix="/api/students", tags=["students"])
 
@@ -129,6 +129,50 @@ def list_students(
         "limit": limit,
         "students": items
     }
+
+
+@router.get("/messages/inbox")
+def get_message_inbox(
+    current_user: User = Depends(require_role(["ADMIN", "FACULTY"])),
+    db: Session = Depends(get_db)
+):
+    """List open student messages visible to staff, newest first."""
+    query = db.query(StudentMentorMessage).join(
+        Student, Student.student_id == StudentMentorMessage.student_id
+    ).filter(StudentMentorMessage.status == "open")
+
+    if current_user.role == "FACULTY":
+        query = query.filter(
+            or_(
+                Student.mentor_id == current_user.id,
+                Student.student_id.in_(
+                    db.query(FacultyAssignment.student_id).filter(
+                        FacultyAssignment.faculty_id == current_user.id
+                    )
+                )
+            )
+        )
+
+    messages = query.order_by(
+        StudentMentorMessage.created_at.desc(),
+        StudentMentorMessage.id.desc()
+    ).all()
+
+    for message in messages:
+        check_student_access(message.student_id, current_user, db)
+
+    return [
+        {
+            "id": message.id,
+            "student_id": message.student_id,
+            "student_name": message.student.name,
+            "message": message.message,
+            "reply": message.reply,
+            "status": message.status,
+            "created_at": message.created_at.isoformat() if message.created_at else None
+        }
+        for message in messages
+    ]
 
 
 @router.get("/{student_id}")

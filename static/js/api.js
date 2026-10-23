@@ -102,6 +102,10 @@ export function getStudentMessages(studentId) {
     return apiRequest(`/api/students/${studentId}/messages`);
 }
 
+export function getMessageInbox() {
+    return apiRequest("/api/students/messages/inbox");
+}
+
 export function replyStudentMessage(messageId, reply) {
     return apiRequest(`/api/students/messages/${messageId}/reply`, {
         method: "PATCH",
