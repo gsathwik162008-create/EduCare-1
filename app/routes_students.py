@@ -343,6 +343,8 @@ def reply_mentor_message(
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
 
+    check_student_access(msg.student_id, current_user, db)
+
     msg.reply = payload.reply.strip()
     msg.status = "resolved"
     msg.updated_at = datetime.utcnow()

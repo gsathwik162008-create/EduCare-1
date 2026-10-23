@@ -59,13 +59,14 @@ def test_faculty_cannot_update_intervention_outside_their_cohort():
     db = SessionLocal()
     try:
         faculty = db.query(User).filter(User.username == "prof_sharma").first()
+        assert faculty is not None
         assigned_student_ids = db.query(FacultyAssignment.student_id).filter(
             FacultyAssignment.faculty_id == faculty.id
         )
         action = db.query(InterventionAction).join(Student).filter(
+            Student.mentor_id != faculty.id,
             ~Student.student_id.in_(assigned_student_ids)
         ).first()
-        assert faculty is not None
         assert action is not None
         action_id = action.id
         original_notes = action.notes
@@ -79,6 +80,39 @@ def test_faculty_cannot_update_intervention_outside_their_cohort():
             headers={"Authorization": f"Bearer {faculty_token}"}
         )
         assert response.status_code == 403
+    finally:
+        db = SessionLocal()
+        try:
+            action = db.query(InterventionAction).filter(InterventionAction.id == action_id).first()
+            if action is not None:
+                action.notes = original_notes
+                db.commit()
+        finally:
+            db.close()
+
+
+def test_faculty_can_update_intervention_in_their_cohort():
+    faculty_token = login("prof_sharma", "faculty123")
+    db = SessionLocal()
+    try:
+        faculty = db.query(User).filter(User.username == "prof_sharma").first()
+        action = db.query(InterventionAction).join(Student).filter(
+            Student.mentor_id == faculty.id
+        ).first()
+        assert faculty is not None
+        assert action is not None
+        action_id = action.id
+        original_notes = action.notes
+    finally:
+        db.close()
+
+    try:
+        response = client.patch(
+            f"/api/interventions/{action_id}",
+            json={"notes": "Authorized cohort update"},
+            headers={"Authorization": f"Bearer {faculty_token}"}
+        )
+        assert response.status_code == 200
     finally:
         db = SessionLocal()
         try:
@@ -118,8 +152,8 @@ def test_faculty_cannot_reply_to_message_outside_their_cohort():
     db = SessionLocal()
     try:
         faculty = db.query(User).filter(User.username == "prof_sharma").first()
-        other_student = db.query(Student).filter(Student.mentor_id != faculty.id).first()
         assert faculty is not None
+        other_student = db.query(Student).filter(Student.mentor_id != faculty.id).first()
         assert other_student is not None
 
         message = StudentMentorMessage(
@@ -140,6 +174,46 @@ def test_faculty_cannot_reply_to_message_outside_their_cohort():
             headers={"Authorization": f"Bearer {faculty_token}"}
         )
         assert response.status_code == 403
+    finally:
+        db = SessionLocal()
+        try:
+            message = db.query(StudentMentorMessage).filter(
+                StudentMentorMessage.id == message_id
+            ).first()
+            if message is not None:
+                db.delete(message)
+                db.commit()
+        finally:
+            db.close()
+
+
+def test_faculty_can_reply_to_message_in_their_cohort():
+    faculty_token = login("prof_sharma", "faculty123")
+    db = SessionLocal()
+    try:
+        faculty = db.query(User).filter(User.username == "prof_sharma").first()
+        assert faculty is not None
+        student = db.query(Student).filter(Student.mentor_id == faculty.id).first()
+        assert student is not None
+
+        message = StudentMentorMessage(
+            student_id=student.student_id,
+            mentor_id=faculty.id,
+            message="Security test message"
+        )
+        db.add(message)
+        db.commit()
+        message_id = message.id
+    finally:
+        db.close()
+
+    try:
+        response = client.patch(
+            f"/api/students/messages/{message_id}/reply",
+            json={"reply": "Authorized cohort reply"},
+            headers={"Authorization": f"Bearer {faculty_token}"}
+        )
+        assert response.status_code == 200
     finally:
         db = SessionLocal()
         try:

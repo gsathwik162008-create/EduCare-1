@@ -7,7 +7,7 @@ from sqlalchemy import or_
 
 from app.database import get_db
 from app.models import User, Student, InterventionAction, FacultyAssignment
-from app.auth import get_current_user
+from app.auth import check_student_access, get_current_user
 
 router = APIRouter(prefix="/api/interventions", tags=["interventions"])
 
@@ -103,10 +103,7 @@ def update_intervention(
     if not action:
         raise HTTPException(status_code=404, detail="Intervention action not found")
 
-    # Access check: students can update their own next steps status; staff can update any scoped action
-    if current_user.role == "STUDENT":
-        if (current_user.student_id or "").upper() != action.student_id.upper():
-            raise HTTPException(status_code=403, detail="Forbidden: You can only update your own action items")
+    check_student_access(action.student_id, current_user, db)
 
     if payload.status:
         valid_statuses = ["pending", "in_progress", "done"]
