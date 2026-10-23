@@ -4,10 +4,10 @@ import numpy as np
 from sqlalchemy.orm import Session
 from app.models import UnifiedStudentMetrics, StudentScore, Student, ScoreSettings
 
-
 def compute_indicator_scores(
     metrics: UnifiedStudentMetrics,
-    settings: ScoreSettings = None
+    settings: ScoreSettings = None,
+    year: int = 3
 ) -> Dict[str, float]:
     """
     Computes normalized (0-100) sub-scores.
@@ -28,8 +28,10 @@ def compute_indicator_scores(
     code = max(0.0, min(100.0, float(metrics.coding_score or 0.0)))
     mocks = max(0, int(metrics.mock_interviews_completed or 0))
     mock_score = min(100.0, mocks * 50.0)  # 2 mock interviews = 100
-    placement_score = round(0.35 * apt + 0.45 * code + 0.20 * mock_score, 2)
-
+    if year >= 3:
+        placement_score = round(0.35 * apt + 0.45 * code + 0.20 * mock_score, 2)
+    else:
+        placement_score = round((0.35 * apt + 0.45 * code) / 0.80, 2)
     # 4. LMS & Engagement Score (0-100)
     assign_pct = max(0.0, min(100.0, float(metrics.assignments_submitted_pct or 0.0)))
     logins = max(0, int(metrics.lms_login_count or 0))

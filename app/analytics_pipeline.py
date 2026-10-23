@@ -76,9 +76,10 @@ def run_full_analytics_pipeline(db: Session) -> Dict[str, Any]:
         return {"status": "empty", "message": "No students found to evaluate."}
 
     # 2. Compute sub-scores & raw metrics for all students
+    student_year_map = {s.student_id: s.year for s in students}
     sub_scores_map = {}
     for m in metrics_list:
-        sub_scores_map[m.student_id] = compute_indicator_scores(m, settings)
+        sub_scores_map[m.student_id] = compute_indicator_scores(m, settings, year=student_year_map.get(m.student_id, 3))
 
     # 3. Calculate cohort averages
     cohort_averages = {

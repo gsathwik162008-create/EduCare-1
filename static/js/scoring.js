@@ -3,7 +3,7 @@
  * STRICT PARITY with Python implementation in app/scoring.py
  */
 
-export function computeIndicatorScores(metrics) {
+export function computeIndicatorScores(metrics, year = 3){
     // 1. Academic Score (0-100)
     const cgpa = Math.max(0.0, Math.min(10.0, parseFloat(metrics.cgpa || 0.0)));
     const backlogs = Math.max(0, parseInt(metrics.total_backlogs || 0, 10));
@@ -17,8 +17,9 @@ export function computeIndicatorScores(metrics) {
     const code = Math.max(0.0, Math.min(100.0, parseFloat(metrics.coding_score || 0.0)));
     const mocks = Math.max(0, parseInt(metrics.mock_interviews_completed || 0, 10));
     const mock_score = Math.min(100.0, mocks * 50.0);
-    const placement_score = Math.round((0.35 * apt + 0.45 * code + 0.20 * mock_score) * 100) / 100;
-
+    const placement_score = year >= 3
+        ? Math.round((0.35 * apt + 0.45 * code + 0.20 * mock_score) * 100) / 100
+        : Math.round(((0.35 * apt + 0.45 * code) / 0.80) * 100) / 100;
     // 4. LMS & Engagement Score (0-100)
     const assign_pct = Math.max(0.0, Math.min(100.0, parseFloat(metrics.assignments_submitted_pct || 0.0)));
     const logins = Math.max(0, parseInt(metrics.lms_login_count || 0, 10));
