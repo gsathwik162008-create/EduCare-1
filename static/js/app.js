@@ -1205,6 +1205,7 @@ async function renderActionListScreen() {
                 </div>
             </div>
         </div>
+        <div id="action-outcome-summary" style="display: none; margin: -8px 0 16px; color: var(--text-secondary); font-size: 14px;"></div>
 
         <!-- Action List (PART 3: Ranked card or row per student with number badge) -->
         <div class="content-card">
@@ -1242,6 +1243,24 @@ async function renderActionListScreen() {
             cardsContainer.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text-muted);">Loading support actions...</div>`;
             const data = await getInterventions({ status: statusFilter.value });
             allActions = data.interventions || [];
+
+            const outcomeSummary = document.getElementById("action-outcome-summary");
+            if (authState.user && authState.user.role === "ADMIN") {
+                const outcomeData = statusFilter.value === "all" ? data : await getInterventions({ status: "all" });
+                const completed = (outcomeData.interventions || []).filter(
+                    action => action.status === "done" && action.score_change !== null && action.score_change !== undefined
+                );
+                if (completed.length > 0) {
+                    const averageChange = completed.reduce((total, action) => total + action.score_change, 0) / completed.length;
+                    const sign = averageChange >= 0 ? "+" : "";
+                    outcomeSummary.textContent = `Interventions completed: ${completed.length} | Avg improvement: ${sign}${averageChange.toFixed(1)} pts`;
+                    outcomeSummary.style.display = "block";
+                } else {
+                    outcomeSummary.style.display = "none";
+                }
+            } else {
+                outcomeSummary.style.display = "none";
+            }
 
             // Summary stats
             document.getElementById("action-total-count").textContent = formatCount(allActions.length);
@@ -1286,6 +1305,7 @@ async function renderActionListScreen() {
                         <div style="flex: 1;">
                             <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px;">
                                 <strong style="font-size: 15px;">${a.student_name}</strong>
+                                ${a.score_change !== null && a.score_change !== undefined ? `<span style="color: var(--status-fine); font-size: 12px; font-weight: 600;">${a.score_change >= 0 ? '+' : ''}${a.score_change.toFixed(1)} pts</span>` : ''}
                                 <span class="mono-num" style="font-size: 12px; color: var(--text-secondary); cursor: pointer; text-decoration: underline;" class="link-student-profile" data-sid="${a.student_id}">
                                     ${a.student_id} (${a.department || 'Engineering'})
                                 </span>

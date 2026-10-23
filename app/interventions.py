@@ -150,7 +150,8 @@ def refresh_interventions_for_all(db: Session) -> int:
                 urgency=rec["urgency"],
                 priority=rec["priority"],
                 status="pending",
-                notes=""
+                notes="",
+                score_at_creation=float(score.total_success_score)
             )
             db.add(action)
             created_count += 1

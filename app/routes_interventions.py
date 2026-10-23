@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from app.database import get_db
-from app.models import User, Student, InterventionAction, FacultyAssignment
+from app.models import User, Student, StudentScore, InterventionAction, FacultyAssignment
 from app.auth import check_student_access, get_current_user
 
 router = APIRouter(prefix="/api/interventions", tags=["interventions"])
@@ -79,6 +79,14 @@ def list_interventions(
             item["potential_gain"] = a.potential_gain
             item["urgency"] = a.urgency
             item["priority"] = a.priority
+        if current_user.role in ["ADMIN", "FACULTY"]:
+            item["score_at_creation"] = a.score_at_creation
+            item["score_at_completion"] = a.score_at_completion
+            item["score_change"] = (
+                a.score_at_completion - a.score_at_creation
+                if a.score_at_completion is not None and a.score_at_creation is not None
+                else None
+            )
 
         items.append(item)
 
@@ -110,6 +118,14 @@ def update_intervention(
         if payload.status not in valid_statuses:
             raise HTTPException(status_code=400, detail=f"Status must be one of: {valid_statuses}")
         action.status = payload.status
+        if payload.status == "done":
+            score = db.query(StudentScore).filter(
+                StudentScore.student_id == action.student_id
+            ).first()
+            if not score:
+                raise HTTPException(status_code=404, detail="Student score not found")
+            action.score_at_completion = float(score.total_success_score)
+            action.completed_at = datetime.now(timezone.utc)
 
     if payload.notes is not None:
         action.notes = payload.notes

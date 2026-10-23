@@ -5,7 +5,14 @@ from fastapi.testclient import TestClient
 from app import llm
 from app.database import SessionLocal
 from app.main import app
-from app.models import FacultyAssignment, InterventionAction, Student, StudentMentorMessage, User
+from app.models import (
+    FacultyAssignment,
+    InterventionAction,
+    Student,
+    StudentMentorMessage,
+    StudentScore,
+    User
+)
 
 client = TestClient(app)
 
@@ -122,6 +129,89 @@ def test_faculty_can_update_intervention_in_their_cohort():
             action = db.query(InterventionAction).filter(InterventionAction.id == action_id).first()
             if action is not None:
                 action.notes = original_notes
+                db.commit()
+        finally:
+            db.close()
+
+
+def test_intervention_completion_records_score_outcome_and_hides_it_from_students():
+    admin_token = login("admin", "admin123")
+    db = SessionLocal()
+    try:
+        action = db.query(InterventionAction).filter(
+            InterventionAction.status != "done"
+        ).first()
+        assert action is not None
+        score = db.query(StudentScore).filter(
+            StudentScore.student_id == action.student_id
+        ).first()
+        assert score is not None
+        action_id = action.id
+        student_id = action.student_id
+        original_values = (
+            action.status,
+            action.score_at_creation,
+            action.score_at_completion,
+            action.completed_at,
+        )
+        expected_score = float(score.total_success_score)
+        expected_creation_score = expected_score - 5.0
+        action.score_at_creation = expected_creation_score
+        db.commit()
+    finally:
+        db.close()
+
+    try:
+        completion_response = client.patch(
+            f"/api/interventions/{action_id}",
+            json={"status": "done"},
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        assert completion_response.status_code == 200
+
+        admin_list = client.get(
+            f"/api/interventions?status=all&student_id={student_id}",
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        completed_action = next(
+            item for item in admin_list.json()["interventions"]
+            if item["id"] == action_id
+        )
+        assert completed_action["score_at_creation"] == expected_creation_score
+        assert completed_action["score_at_completion"] == expected_score
+        assert completed_action["score_change"] == 5.0
+        db = SessionLocal()
+        try:
+            persisted_action = db.query(InterventionAction).filter(
+                InterventionAction.id == action_id
+            ).first()
+            assert persisted_action.completed_at is not None
+        finally:
+            db.close()
+
+        student_token = login(student_id, "student123")
+        student_list = client.get(
+            f"/api/interventions?status=all",
+            headers={"Authorization": f"Bearer {student_token}"}
+        )
+        student_action = next(
+            item for item in student_list.json()["interventions"]
+            if item["id"] == action_id
+        )
+        assert "score_at_creation" not in student_action
+        assert "score_at_completion" not in student_action
+        assert "score_change" not in student_action
+    finally:
+        db = SessionLocal()
+        try:
+            action = db.query(InterventionAction).filter(
+                InterventionAction.id == action_id
+            ).first()
+            if action is not None:
+                action.status = original_values[0]
+                action.score_at_creation = original_values[1]
+                action.score_at_completion = original_values[2]
+                action.completed_at = original_values[3]
                 db.commit()
         finally:
             db.close()

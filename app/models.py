@@ -175,6 +175,9 @@ class InterventionAction(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+    score_at_creation = Column(Float, nullable=True, default=None)
+    score_at_completion = Column(Float, nullable=True, default=None)
+    completed_at = Column(DateTime, nullable=True, default=None)
 
     student = relationship("Student", back_populates="interventions")
     mentor = relationship("User")

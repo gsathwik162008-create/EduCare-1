@@ -1,4 +1,5 @@
 import os
+from sqlalchemy import inspect, text
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -14,6 +15,20 @@ from app.llm import router as llm_router
 
 # Ensure tables exist
 Base.metadata.create_all(bind=engine)
+
+intervention_columns = {
+    column["name"] for column in inspect(engine).get_columns("intervention_actions")
+}
+with engine.begin() as connection:
+    for column_name, column_type in (
+        ("score_at_creation", "FLOAT"),
+        ("score_at_completion", "FLOAT"),
+        ("completed_at", "DATETIME")
+    ):
+        if column_name not in intervention_columns:
+            connection.execute(text(
+                f"ALTER TABLE intervention_actions ADD COLUMN {column_name} {column_type}"
+            ))
 
 app = FastAPI(
     title="EduCare - Student Success Platform",

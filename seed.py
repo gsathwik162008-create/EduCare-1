@@ -2,10 +2,11 @@ import os
 import random
 import numpy as np
 import pandas as pd
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.database import engine, Base, SessionLocal
-from app.models import User, Student, FacultyAssignment, ScoreSettings
+from app.models import User, Student, FacultyAssignment, InterventionAction, ScoreSettings, StudentScore
 from app.auth import hash_password
 from app.ingestion import ingest_seven_sources
 from app.analytics_pipeline import run_full_analytics_pipeline
@@ -323,6 +324,21 @@ def seed_database():
         print(f"  - Success! Computed scores for {pipeline_res['students_evaluated']} students.", flush=True)
         print(f"  - Trained Gradient Boosting ML model: 5-fold CV Accuracy = {pipeline_res['ml_model_metrics']['cv_accuracy']:.2%}, ROC-AUC = {pipeline_res['ml_model_metrics']['cv_roc_auc']:.2%}.", flush=True)
         print(f"  - Generated & ranked {pipeline_res['new_interventions_created']} intervention actions.", flush=True)
+
+        random.seed(42)
+        actions = db.query(InterventionAction).all()
+        scores_map = {score.student_id: score for score in db.query(StudentScore).all()}
+        now = datetime.now()
+        for action in actions:
+            score = scores_map.get(action.student_id)
+            if score is None or random.random() >= 0.30:
+                continue
+            current_score = float(score.total_success_score)
+            action.status = "done"
+            action.score_at_creation = current_score - random.uniform(3.0, 8.0)
+            action.score_at_completion = current_score
+            action.completed_at = now - timedelta(seconds=random.uniform(0, 30 * 24 * 60 * 60))
+        db.commit()
 
         print("\n[5/5] Seed complete! Demo credentials:", flush=True)
         print("-" * 50, flush=True)
