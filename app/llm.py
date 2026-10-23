@@ -1,14 +1,18 @@
 import os
+import json
+import re
 import httpx
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
 from dotenv import load_dotenv
 
 from app.database import get_db
 from app.models import Student, StudentScore, UnifiedStudentMetrics, User
 from app.auth import check_student_access, get_current_user
+from app.routes_analytics import get_scoped_student_ids
 
 load_dotenv()
 router = APIRouter(prefix="/api", tags=["llm"])
@@ -75,25 +79,78 @@ def generate_student_explanation(student: Student, m: Optional[UnifiedStudentMet
     return f"Your strengths: {'; '.join(strengths)}. Focus areas: {'; '.join(focus_areas)}."
 
 
-def generate_template_qa_response(query: str, db: Session) -> str:
-    """Fallback keyword synthesis for analytical campus questions."""
+def get_analytics_aggregates(scoped_student_ids: Optional[list], db: Session) -> Dict[str, Any]:
+    """Calculate analytics aggregates within the supplied student scope."""
+    query = db.query(Student).outerjoin(
+        StudentScore, Student.student_id == StudentScore.student_id
+    ).outerjoin(
+        UnifiedStudentMetrics, Student.student_id == UnifiedStudentMetrics.student_id
+    )
+    if scoped_student_ids is not None:
+        query = query.filter(Student.student_id.in_(scoped_student_ids))
+
+    at_risk_count = query.filter(or_(
+        StudentScore.academic_risk_level.in_(["High", "Medium"]),
+        StudentScore.placement_risk_level.in_(["High", "Medium"])
+    )).count()
+    attendance_below_75_count = query.filter(
+        UnifiedStudentMetrics.attendance_pct < 75.0
+    ).count()
+    placement_ready_count = query.filter(StudentScore.placement_score >= 70.0).count()
+
+    department_averages = query.with_entities(
+        Student.department,
+        func.avg(StudentScore.total_success_score)
+    ).group_by(Student.department).all()
+
+    return {
+        "at_risk_count": at_risk_count,
+        "attendance_below_75_count": attendance_below_75_count,
+        "placement_ready_count": placement_ready_count,
+        "average_success_score_by_department": {
+            department: round(float(average), 1)
+            for department, average in department_averages
+            if average is not None
+        }
+    }
+
+
+def generate_template_qa_response(query: str, aggregates: Dict[str, Any]) -> str:
+    """Fallback keyword synthesis from the scoped analytics aggregates."""
     q_lower = query.lower()
 
     if "risk" in q_lower or "probation" in q_lower or "support" in q_lower or "attention" in q_lower:
-        high_risk_count = db.query(StudentScore).filter(
-            (StudentScore.academic_risk_level == "High") | (StudentScore.placement_risk_level == "High")
-        ).count()
-        return f"Across the college, {high_risk_count} students need urgent attention. Key reasons are attendance under 75% and needing mock interview practice."
+        return f"{aggregates['at_risk_count']} students in the accessible cohort have elevated academic or placement risk."
 
     if "placement" in q_lower or "coding" in q_lower or "job" in q_lower:
-        placed_count = db.query(StudentScore).filter(StudentScore.placement_score >= 70.0).count()
-        return f"Currently, {placed_count} students are on track for job readiness with scores of 70 out of 100 or higher."
+        return f"{aggregates['placement_ready_count']} students in the accessible cohort are on track for job readiness."
 
     if "attendance" in q_lower:
-        sub_75 = db.query(UnifiedStudentMetrics).filter(UnifiedStudentMetrics.attendance_pct < 75.0).count()
-        return f"There are {sub_75} students with attendance below the 75% minimum needed."
+        return f"{aggregates['attendance_below_75_count']} students in the accessible cohort have attendance below 75%."
 
-    return "College records show steady performance with active support in place for students needing attendance and interview help."
+    return (
+        f"The accessible cohort has {aggregates['at_risk_count']} students with elevated academic or placement risk, "
+        f"{aggregates['attendance_below_75_count']} with attendance below 75%, and "
+        f"{aggregates['placement_ready_count']} on track for job readiness."
+    )
+
+
+def redact_student_identifiers(query: str, db: Session) -> str:
+    """Remove known student names and IDs before including a question in an LLM prompt."""
+    identifiers = db.query(Student.student_id, Student.name).all()
+    redacted_query = query
+    for identifier in sorted(
+        {value for row in identifiers for value in row if value},
+        key=len,
+        reverse=True
+    ):
+        redacted_query = re.sub(
+            rf"(?<![A-Za-z0-9]){re.escape(identifier)}(?![A-Za-z0-9])",
+            "[redacted]",
+            redacted_query,
+            flags=re.IGNORECASE
+        )
+    return redacted_query
 
 
 @router.post("/explain")
@@ -164,16 +221,24 @@ async def ask_analytics(
     POST /api/ask: Analytical Q&A assistant for institutional inquiries.
     Uses LLM_API_KEY if configured; silently falls back to keyword synthesis if missing or on failure.
     """
-    template_answer = generate_template_qa_response(payload.query, db)
+    if current_user.role not in ["ADMIN", "FACULTY"]:
+        raise HTTPException(status_code=403, detail="Only faculty and admins may use campus analytics")
+
+    scoped_student_ids = get_scoped_student_ids(current_user, db)
+    aggregates = get_analytics_aggregates(scoped_student_ids, db)
+    template_answer = generate_template_qa_response(payload.query, aggregates)
 
     if not LLM_API_KEY:
         return {"answer": template_answer, "source": "keyword_synthesis"}
 
     try:
+        safe_query = redact_student_identifiers(payload.query, db)
         prompt = (
-            f"You are Smart Campus Analytics AI for college administrators. "
-            f"Answer this query professionally in 2 sentences based on institutional data:\n"
-            f"Question: {payload.query}"
+            "You are Smart Campus Analytics AI. Answer using ONLY the aggregate JSON below. "
+            "If the requested information is not present in the JSON, reply exactly: "
+            "\"I don't have that data\". Do not invent or infer additional information.\n"
+            f"Aggregate JSON:\n{json.dumps(aggregates, sort_keys=True)}\n"
+            f"Question: {safe_query}"
         )
 
         async with httpx.AsyncClient(timeout=4.0) as client:

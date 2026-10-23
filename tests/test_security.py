@@ -1,5 +1,8 @@
+import re
+
 from fastapi.testclient import TestClient
 
+from app import llm
 from app.database import SessionLocal
 from app.main import app
 from app.models import FacultyAssignment, InterventionAction, Student, StudentMentorMessage, User
@@ -134,6 +137,44 @@ def test_student_cannot_ask_for_campus_wide_analytics():
     )
 
     assert response.status_code == 403
+
+
+def test_admin_can_ask_campus_analytics(monkeypatch):
+    monkeypatch.setattr(llm, "LLM_API_KEY", "")
+    admin_token = login("admin", "admin123")
+
+    response = client.post(
+        "/api/ask",
+        json={"query": "How many students are at high risk?"},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "keyword_synthesis"
+
+
+def test_faculty_analytics_are_scoped_to_her_cohort(monkeypatch):
+    monkeypatch.setattr(llm, "LLM_API_KEY", "")
+    admin_token = login("admin", "admin123")
+    faculty_token = login("prof_sharma", "faculty123")
+    payload = {"query": "How many students are at high risk?"}
+
+    admin_response = client.post(
+        "/api/ask",
+        json=payload,
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    faculty_response = client.post(
+        "/api/ask",
+        json=payload,
+        headers={"Authorization": f"Bearer {faculty_token}"}
+    )
+
+    assert admin_response.status_code == 200
+    assert faculty_response.status_code == 200
+    admin_count = int(re.search(r"\d+", admin_response.json()["answer"]).group())
+    faculty_count = int(re.search(r"\d+", faculty_response.json()["answer"]).group())
+    assert faculty_count < admin_count
 
 
 def test_authentication_token_in_query_parameter_is_rejected():
