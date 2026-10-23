@@ -2333,13 +2333,13 @@ async function renderModelSettingsScreen() {
             getModelMetrics()
         ]);
 
-        const accuracyPct = Math.round((mlMetrics.cv_accuracy || 0.88) * 100);
+        const accuracyPct = Math.round((mlMetrics.accuracy || 0) * 100);
 
         container.innerHTML = `
             <div class="page-header">
                 <div>
-                    <h1 class="page-title">${LABELS.screens.modelSettings.title}</h1>
-                    <div class="page-purpose">${LABELS.screens.modelSettings.subtitle}</div>
+                    <h1 class="page-title">Next-Semester Risk Prediction</h1>
+                    <div class="page-purpose">Predicts GPA drops or new backlogs from semester history.</div>
                 </div>
                 <div>
                     <button class="btn-outline" id="btn-recompute-all">Recompute All Scores</button>
@@ -2350,31 +2350,31 @@ async function renderModelSettingsScreen() {
             <div class="summary-grid">
                 <div class="summary-card">
                     <div class="summary-card-header">
-                        <span class="summary-label">${LABELS.earlyWarningAccuracy} ${helpTip(LABELS.earlyWarningAccuracyHelp)}</span>
+                        <span class="summary-label">Test Accuracy</span>
                     </div>
                     <div class="summary-value mono-num" style="color: var(--status-fine);">${accuracyPct}%</div>
                     <div class="summary-change-row">
-                        <span class="change-text">Tested across all 600 student records</span>
+                        <span class="change-text">Held-out semesters 6→7 and 7→8</span>
                     </div>
                 </div>
 
                 <div class="summary-card">
                     <div class="summary-card-header">
-                        <span class="summary-label">True Warning Rate ${helpTip("How often an early warning flag is genuinely at risk.")}</span>
+                        <span class="summary-label">Test Precision</span>
                     </div>
                     <div class="summary-value mono-num">${Math.round((mlMetrics.cv_precision || 0.85) * 100)}%</div>
                     <div class="summary-change-row">
-                        <span class="change-text">Low false alarm rate</span>
+                        <span class="change-text">Next-semester predictions</span>
                     </div>
                 </div>
 
                 <div class="summary-card">
                     <div class="summary-card-header">
-                        <span class="summary-label">Overall Reliability ${helpTip("Overall balance between spotting at-risk students and avoiding false alarms.")}</span>
+                        <span class="summary-label">Test ROC-AUC</span>
                     </div>
                     <div class="summary-value mono-num">${Math.round((mlMetrics.cv_roc_auc || 0.91) * 100)}%</div>
                     <div class="summary-change-row">
-                        <span class="change-text">High test confidence</span>
+                        <span class="change-text">Time-based evaluation</span>
                     </div>
                 </div>
             </div>
@@ -2384,17 +2384,17 @@ async function renderModelSettingsScreen() {
                 <div class="col-6 content-card">
                     <div class="card-header">
                         <div class="card-title-row">
-                            <h2 class="card-title">${LABELS.earlyWarningAccuracy} ${helpTip("One clear metric showing how well the early warning system performs.")}</h2>
+                            <h2 class="card-title">Next-Semester Prediction Accuracy</h2>
                         </div>
-                        <div class="card-how-to-read">How to read this: A single bar showing the percentage of accurate early warnings.</div>
+                        <div class="card-how-to-read">Measured only on held-out semester 6→7 and 7→8 transitions.</div>
                     </div>
                     <div class="card-takeaway">
-                        The early warning system correctly spots students needing support <strong>${accuracyPct} times out of 100</strong>.
+                        The model correctly predicts next-semester outcomes in <strong>${accuracyPct} out of 100</strong> held-out transitions.
                     </div>
 
                     <div style="margin: 20px 0;">
                         <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 6px;">
-                            <span>Early warning accuracy</span>
+                            <span>Next-semester prediction accuracy</span>
                             <span class="mono-num">${accuracyPct}%</span>
                         </div>
                         <div class="influence-track" style="height: 18px;">
@@ -2402,7 +2402,7 @@ async function renderModelSettingsScreen() {
                         </div>
                     </div>
                     <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
-                        This ensures teachers and advisors spend time reaching out to students who truly need help.
+                        ${mlMetrics.honest_note || "The model uses a time-based train/test split on semester history."}
                     </p>
                 </div>
 
@@ -2410,9 +2410,9 @@ async function renderModelSettingsScreen() {
                 <div class="col-6 content-card">
                     <div class="card-header">
                         <div class="card-title-row">
-                            <h2 class="card-title">${LABELS.whatAffectsScore} across all students ${helpTip("Shows which daily factors matter most across the college.")}</h2>
+                            <h2 class="card-title">Features used for prediction</h2>
                         </div>
-                        <div class="card-how-to-read">How to read this: Factors with longer bars have the greatest impact on early warnings.</div>
+                        <div class="card-how-to-read">Importance of each semester-history feature in the fitted model.</div>
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 10px;">
                         ${(mlMetrics.feature_importances || []).slice(0, 5).map(f => `
@@ -2427,6 +2427,33 @@ async function renderModelSettingsScreen() {
                             </div>
                         `).join('')}
                     </div>
+                </div>
+            </div>
+            <div class="content-card" style="margin-top: 16px;">
+                <div class="card-header">
+                    <div class="card-title-row"><h2 class="card-title">Baseline comparison</h2></div>
+                    <div class="card-how-to-read">Held-out test metrics for the model and both simple baselines.</div>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="data-table">
+                        <thead><tr><th>Predictor</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>ROC-AUC</th></tr></thead>
+                        <tbody>
+                            ${[
+                                ["Gradient Boosting", mlMetrics.model_metrics],
+                                ["Majority class", mlMetrics.baseline_majority_metrics],
+                                ["Latest GPA below 6.5", mlMetrics.baseline_gpa_rule_metrics]
+                            ].map(([name, values]) => `
+                                <tr>
+                                    <td>${name}</td>
+                                    <td>${Math.round((values?.accuracy || 0) * 100)}%</td>
+                                    <td>${Math.round((values?.precision || 0) * 100)}%</td>
+                                    <td>${Math.round((values?.recall || 0) * 100)}%</td>
+                                    <td>${Math.round((values?.f1 || 0) * 100)}%</td>
+                                    <td>${Math.round((values?.roc_auc || 0) * 100)}%</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

@@ -90,18 +90,20 @@ def run_full_analytics_pipeline(db: Session) -> Dict[str, Any]:
         "skills_feedback_score": float(np.mean([s["skills_feedback_score"] for s in sub_scores_map.values()]))
     }
 
-    # 4. Train ML Gradient Boosting model on all cohort metrics
-    ml_metrics = train_gradient_boosting_model(metrics_list)
-
-    # 5. Compute K-Means clusters
-    kmeans_clusters = compute_kmeans_segments(metrics_list)
-
-    # 6. Evaluate GPA trends
+    # 4. Evaluate semester history for the next-semester predictor
     sem_histories = db.query(SemesterHistory).all()
-    trend_map = {}
     history_by_student = {}
     for h in sem_histories:
         history_by_student.setdefault(h.student_id, []).append(h)
+
+    # 5. Train and use the time-based next-semester GPA-drop model
+    ml_metrics = train_gradient_boosting_model(sem_histories)
+
+    # 6. Compute K-Means clusters
+    kmeans_clusters = compute_kmeans_segments(metrics_list)
+
+    # 7. Evaluate GPA trends
+    trend_map = {}
 
     for sid, hist in history_by_student.items():
         hist.sort(key=lambda x: x.semester)
@@ -116,7 +118,7 @@ def run_full_analytics_pipeline(db: Session) -> Dict[str, Any]:
         else:
             trend_map[sid] = "stable"
 
-    # 7. Update StudentScore table
+    # 8. Update StudentScore table
     existing_scores = {s.student_id: s for s in db.query(StudentScore).all()}
 
     for s in students:
@@ -144,7 +146,7 @@ def run_full_analytics_pipeline(db: Session) -> Dict[str, Any]:
         explanation = generate_score_explanation(sub, cohort_averages, weights)
 
         # ML Risk Probability
-        ml_prob = predict_student_risk_probability(m)
+        ml_prob = predict_student_risk_probability(history_by_student.get(sid, []))
 
         # Segments
         rule_seg = assign_rule_segment(m)
@@ -174,7 +176,7 @@ def run_full_analytics_pipeline(db: Session) -> Dict[str, Any]:
 
     db.commit()
 
-    # 8. Refresh and rank intervention actions
+    # 9. Refresh and rank intervention actions
     created_interventions = refresh_interventions_for_all(db)
 
     return {

@@ -124,10 +124,10 @@ export function evaluateWhatIf(baseMetrics, adjustments, weights = {}, year = 3)
         simMetrics[k] = parseFloat(v);
     }
 
-    const baseSub = computeIndicatorScores(baseMetrics);
+    const baseSub = computeIndicatorScores(baseMetrics, year);
     const baseScore = computeSuccessScore(baseSub, weights);
 
-    const simSub = computeIndicatorScores(simMetrics);
+    const simSub = computeIndicatorScores(simMetrics, year);
     const simScore = computeSuccessScore(simSub, weights);
     const risks = evaluateRisks(simMetrics, year);
 
@@ -147,7 +147,7 @@ export function evaluateWhatIf(baseMetrics, adjustments, weights = {}, year = 3)
     for (const cand of candidates) {
         const testMetrics = { ...simMetrics };
         testMetrics[cand.key] = Math.min(cand.max, (parseFloat(testMetrics[cand.key] || 0) + cand.delta));
-        const testSub = computeIndicatorScores(testMetrics);
+        const testSub = computeIndicatorScores(testMetrics, year);
         const testScore = computeSuccessScore(testSub, weights);
         const gain = testScore - simScore;
         if (gain > maxGain) {

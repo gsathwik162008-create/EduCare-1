@@ -37,7 +37,11 @@ def test_python_js_scoring_parity():
     js_inputs = []
     py_results = []
 
-    for idx, (cgpa, bl, att, apt, code, mocks, assigns, logins, forum, events, tech, soft, fac_fb, peer_fb) in enumerate(test_cases):
+    test_years = [3] * len(test_cases) + [1, 2]
+    cases_with_early_years = test_cases + [test_cases[0], test_cases[1]]
+
+    for idx, (cgpa, bl, att, apt, code, mocks, assigns, logins, forum, events, tech, soft, fac_fb, peer_fb) in enumerate(cases_with_early_years):
+        year = test_years[idx]
         m = UnifiedStudentMetrics(
             student_id=f"TEST_{idx}",
             cgpa=cgpa,
@@ -56,7 +60,7 @@ def test_python_js_scoring_parity():
             peer_feedback_score=peer_fb
         )
 
-        py_sub = compute_indicator_scores(m)
+        py_sub = compute_indicator_scores(m, year=year)
         py_total = compute_success_score(
             py_sub,
             w_acad=weights["weight_academic"],
@@ -85,7 +89,8 @@ def test_python_js_scoring_parity():
             "technical_skills_score": tech,
             "soft_skills_score": soft,
             "faculty_feedback_score": fac_fb,
-            "peer_feedback_score": peer_fb
+            "peer_feedback_score": peer_fb,
+            "year": year
         })
 
     # Execute static/js/scoring.js via node with input data
@@ -98,7 +103,7 @@ def test_python_js_scoring_parity():
     const weights = {json.dumps(weights)};
 
     const results = inputs.map(input => {{
-        const sub = computeIndicatorScores(input);
+        const sub = computeIndicatorScores(input, input.year);
         const total = computeSuccessScore(sub, weights);
         return {{ sub, total }};
     }});
